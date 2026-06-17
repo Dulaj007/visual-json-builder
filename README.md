@@ -1,3 +1,5 @@
+# ![JSON Builder](https://jpcdn.it/img/small/cec66220b8415bc5ce0b8843bf2daa67.png)
+
 # JSON Builder
 
 A visual web application for creating structured JSON files without writing code.  
@@ -102,7 +104,8 @@ python manage.py runserver
 4. Click "Preview" to inspect       →  see the formatted JSON before downloading
 5. Click "Export JSON"              →  browser downloads  data.json
 ```
-
+# ![JSON Builder](https://jpcdn.it/img/small/cec66220b8415bc5ce0b8843bf2daa67.png)
+# ![JSON Builder](https://jpcdn.it/img/small/00b056e2a5846d5c479afe5b6bd51828.png)
 ---
 
 ## Project Structure
