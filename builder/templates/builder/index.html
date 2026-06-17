@@ -1,0 +1,325 @@
+{% load static %}
+{% comment %}
+  index.html — JSON Builder Single-Page Template
+  ================================================
+  This is the only Django template in the project. Django renders it
+  once on the initial GET request; all subsequent interaction is
+  handled client-side by app.js without any page navigation.
+
+  Template structure (top to bottom):
+    head          — meta, title, external stylesheet, inline toast CSS
+    header        — sticky top bar: logo + Preview / Clear / Export buttons
+    main          — two panels rendered inside .app-main
+      Schema panel  — schema field list + column headers + type legend
+      Items panel   — items container (filled by app.js)
+    Preview modal — hidden overlay for the JSON preview dialog
+    Toast element — slide-up notification (shown/hidden by app.js)
+    script        — loads app.js after the DOM is ready
+
+  Django template tags used:
+    load static   — enables the static tag for resolving asset URLs
+    static 'path' — resolves a static asset to its full URL at render time
+    &amp; in panel title — HTML entity for the & character
+
+  All interactive behaviour (rendering items, exporting JSON, etc.) lives
+  in app.js. The HTML only provides static markup and the anchor IDs that
+  JavaScript queries: #schema-fields, #items-container, #preview-modal,
+  #toast, #schema-count, #items-count, #preview-code.
+{% endcomment %}
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>JSON Builder</title>
+
+  <!-- Main stylesheet — design tokens, layout, components -->
+  <link rel="stylesheet" href="{% static 'builder/style.css' %}" />
+
+  <!--
+    Toast notification styles are inlined here (rather than in style.css)
+    because they are tightly coupled to this single template and small
+    enough not to warrant their own file.
+
+    The toast starts off-screen (translateY(80px), opacity 0) and slides
+    into view when JavaScript adds the "show" class. It auto-dismisses
+    after 2.5 seconds via a setTimeout in app.js.
+
+    Variants:
+      .toast-warn  amber background — used for no-op warnings
+      .toast-ok    green background — used for success confirmations
+  -->
+  <style>
+    /* Toast */
+    .toast {
+      position: fixed;
+      bottom: 24px;
+      left: 50%;
+      transform: translateX(-50%) translateY(80px);
+      background: #1e293b;
+      color: white;
+      padding: 10px 18px;
+      border-radius: 8px;
+      font-size: 13px;
+      font-weight: 500;
+      z-index: 999;
+      opacity: 0;
+      transition: transform 0.25s ease, opacity 0.25s ease;
+      pointer-events: none;
+      white-space: nowrap;
+    }
+    .toast.show { transform: translateX(-50%) translateY(0); opacity: 1; }
+    .toast.toast-warn { background: #92400e; }
+    .toast.toast-ok { background: #065f46; }
+  </style>
+</head>
+<body>
+
+<!--
+  ===== HEADER =====
+  Sticky top bar containing the app logo on the left and three action
+  buttons on the right. Stays visible as the user scrolls down through
+  many items (z-index: 100 in style.css).
+
+  Buttons:
+    Preview     — opens the JSON preview modal (showPreview in app.js)
+    Clear       — confirms then resets all state (confirmClearAll)
+    Export JSON — downloads data.json immediately (exportJSON)
+-->
+<header class="app-header">
+  <div class="app-logo">
+    <!-- coloured square icon block -->
+    <div class="app-logo-icon">
+      <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+        <!-- code brackets < > icon -->
+        <polyline points="16 18 22 12 16 6"/><polyline points="8 6 2 12 8 18"/>
+      </svg>
+    </div>
+    <div>
+      <div class="app-title">JSON Builder</div>
+      <div class="app-subtitle">Visual JSON file creator</div>
+    </div>
+  </div>
+
+  <div class="header-actions">
+    <!-- Preview: shows formatted JSON in the modal before downloading -->
+    <button class="btn btn-ghost" onclick="showPreview()">
+      <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>
+      <span>Preview</span>
+    </button>
+
+    <!-- Clear: destructive — app.js shows a confirm() dialog first -->
+    <button class="btn btn-secondary" onclick="confirmClearAll()">
+      <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/><path d="M10 11v6"/><path d="M14 11v6"/></svg>
+      <span>Clear</span>
+    </button>
+
+    <!-- Export JSON: triggers immediate browser download of data.json -->
+    <button class="btn btn-primary" onclick="exportJSON()">
+      <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+      <span>Export JSON</span>
+    </button>
+  </div>
+</header>
+
+<!--
+  ===== MAIN CONTENT AREA =====
+  .app-main is a centred flex column (max-width: 1100px) that holds
+  the Schema panel and the Items panel as direct children, separated
+  by gap: 20px (set in style.css).
+-->
+<main class="app-main">
+
+  <!--
+    ===== SCHEMA PANEL =====
+    Lets the user define the structure of the JSON output — which
+    fields exist, their names (used as JSON keys), and their types.
+
+    Panel header contains:
+      - Title + description + live field count badge (#schema-count)
+      - "Add Field" button → calls addSchemaField() in app.js
+
+    Panel body contains:
+      - Column header row (non-interactive, for visual alignment)
+      - #schema-fields div — populated by renderSchema() in app.js
+      - Type legend row — colour-coded pills explaining the four types
+  -->
+  <section class="panel">
+    <div class="panel-header">
+      <div class="panel-title-group">
+        <div>
+          <div class="panel-title">
+            Schema &amp; Field Types
+          </div>
+          <div class="panel-desc">Define the structure — field names and their types — that every item will follow.</div>
+        </div>
+        <!-- Live counter updated by renderSchema() -->
+        <span class="badge-count" id="schema-count">0</span>
+      </div>
+      <button class="btn btn-primary" onclick="addSchemaField()">
+        <svg xmlns="http://www.w3.org/2000/svg" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+        Add Field
+      </button>
+    </div>
+
+    <div class="panel-body">
+      <!--
+        Column header row — purely visual alignment guide matching the
+        grid columns in .schema-row (20px | 1fr | 140px | 28px).
+        Not interactive; screen readers skip it.
+      -->
+      <div style="display:grid;grid-template-columns:20px 1fr 140px 28px;gap:8px;padding:0 10px 6px;font-size:11px;font-weight:600;color:var(--text-muted);letter-spacing:0.04em;text-transform:uppercase;">
+        <span></span>
+        <span>Field Name</span>
+        <span>Type</span>
+        <span></span>
+      </div>
+
+      <!--
+        #schema-fields — the live schema list.
+        app.js clears and rebuilds this div every time renderSchema()
+        is called (on add, remove, or type change).
+        The initial empty-state message is replaced as soon as a field
+        is added.
+      -->
+      <div class="schema-fields-list" id="schema-fields">
+        <div class="schema-empty">
+          No fields yet — click <strong>Add Field</strong> to define your JSON structure.
+        </div>
+      </div>
+
+      <!--
+        Type legend — a row of colour-coded badges explaining what each
+        type does. Helps new users understand "array" (most non-obvious)
+        before they start building their schema.
+      -->
+      <div style="display:flex;gap:10px;flex-wrap:wrap;margin-top:4px;padding-top:10px;border-top:1px solid var(--border);">
+        <span style="font-size:11px;color:var(--text-muted);font-weight:500;margin-right:2px;">Types:</span>
+        <span class="type-tag type-string">string</span>
+        <span class="type-tag type-number">number</span>
+        <span class="type-tag type-boolean">boolean</span>
+        <span class="type-tag type-array">array</span>
+        <span style="font-size:11px;color:var(--text-muted);margin-left:4px;">— array creates a list of values inside one field</span>
+      </div>
+    </div>
+  </section>
+
+  <!--
+    ===== ITEMS PANEL =====
+    Each item becomes one object in the exported JSON array.
+    The panel header shows a live count badge and an "Add Item" button.
+
+    #items-container is the only anchor app.js needs; renderItems()
+    replaces its entire innerHTML with either:
+      - A .items-empty call-to-action (when no items exist), or
+      - A .items-grid div containing one .item-card per item.
+
+    Each item card is built dynamically from the current schema, so
+    adding or removing a schema field immediately affects all cards
+    on the next renderItems() call.
+  -->
+  <section class="panel">
+    <div class="panel-header">
+      <div class="panel-title-group">
+        <div>
+          <div class="panel-title">Items</div>
+          <div class="panel-desc">Each item becomes one object in the exported JSON array.</div>
+        </div>
+        <!-- Live counter updated by renderItems() -->
+        <span class="badge-count" id="items-count">0</span>
+      </div>
+      <button class="btn btn-primary" onclick="addItem()">
+        <svg xmlns="http://www.w3.org/2000/svg" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+        Add Item
+      </button>
+    </div>
+
+    <!--
+      #items-container — replaced wholesale by renderItems() in app.js.
+      The static empty-state below is the initial server-rendered HTML;
+      once app.js runs on DOMContentLoaded it is immediately replaced
+      (even if no items exist, the JS version has the correct button).
+    -->
+    <div id="items-container">
+      <div class="items-empty">
+        <div class="items-empty-icon">
+          <svg xmlns="http://www.w3.org/2000/svg" width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="12" y1="18" x2="12" y2="12"/><line x1="9" y1="15" x2="15" y2="15"/></svg>
+        </div>
+        <p>No items yet. Add one to start building your JSON.</p>
+        <button class="btn btn-primary" onclick="addItem()">
+          <svg xmlns="http://www.w3.org/2000/svg" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+          Add first item
+        </button>
+      </div>
+    </div>
+  </section>
+
+</main>
+
+<!--
+  ===== PREVIEW MODAL =====
+  A full-screen overlay (display: none by default; display: flex
+  when the .open class is added) that shows the current state as
+  formatted JSON inside a scrollable <pre> block.
+
+  Accessibility:
+    role="dialog" + aria-modal="true"    — marks the modal for screen readers
+    aria-labelledby="modal-title"        — names the dialog from its heading
+
+  Interaction:
+    Backdrop click → closePreview() (handled via JS event listener, not onclick,
+                     to distinguish a backdrop click from a modal-body click)
+    Escape key     → closePreview() (keydown listener on document in app.js)
+    × button       → closePreview()
+    Copy button    → copyPreviewJSON() — writes to clipboard
+    Download button → exportJSON() + closePreview()
+
+  #preview-code — the <pre> whose textContent is set by showPreview()
+    to the pretty-printed JSON string.
+-->
+<div class="modal-backdrop" id="preview-modal">
+  <div class="modal" role="dialog" aria-modal="true" aria-labelledby="modal-title">
+    <div class="modal-header">
+      <h2 class="modal-title" id="modal-title">JSON Preview</h2>
+      <button class="btn-icon btn-remove" onclick="closePreview()" title="Close">
+        <svg xmlns="http://www.w3.org/2000/svg" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+      </button>
+    </div>
+
+    <!-- scrollable JSON code block -->
+    <div class="modal-body">
+      <pre class="code-block" id="preview-code"></pre>
+    </div>
+
+    <div class="modal-footer">
+      <button class="btn btn-secondary" onclick="copyPreviewJSON()">
+        <svg xmlns="http://www.w3.org/2000/svg" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>
+        Copy
+      </button>
+      <!-- Download closes the modal after triggering the download -->
+      <button class="btn btn-primary" onclick="exportJSON(); closePreview();">
+        <svg xmlns="http://www.w3.org/2000/svg" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+        Download
+      </button>
+    </div>
+  </div>
+</div>
+
+<!--
+  ===== TOAST =====
+  A single reusable notification element. app.js sets its text,
+  adds/removes the "show" class, and varies the background via
+  "toast-ok" / "toast-warn" modifier classes. It is positioned
+  fixed at the bottom-centre of the viewport (see inline <style>).
+-->
+<div class="toast" id="toast"></div>
+
+<!--
+  app.js is loaded at the end of <body> so it runs after the DOM is
+  fully parsed (equivalent to defer). The DOMContentLoaded listener
+  inside app.js handles all initialisation (localStorage restore,
+  initial renders, global event listeners).
+-->
+<script src="{% static 'builder/app.js' %}"></script>
+</body>
+</html>

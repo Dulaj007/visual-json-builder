@@ -1,0 +1,952 @@
+/*
+ * style.css — JSON Builder Stylesheet
+ *
+ * Organised into clearly labelled sections in the order elements
+ * appear in the document, from globals down to responsive overrides.
+ *
+ * Design tokens are centralised in :root as CSS custom properties so
+ * every colour, radius, and shadow value has a single source of truth.
+ * All component styles reference these tokens, making a future theme
+ * change a one-file edit.
+ *
+ * Sections (in order):
+ *   1. Variables      — design tokens (:root)
+ *   2. Reset          — box-model normalisation and body defaults
+ *   3. Header         — sticky top bar with logo and action buttons
+ *   4. Buttons        — shared .btn base + all variants + icon buttons
+ *   5. Layout         — page container (.app-main)
+ *   6. Panels         — card-style content panels used for schema & items
+ *   7. Schema         — schema field list rows and empty state
+ *   8. Inputs         — text input and select base styles
+ *   9. Type badges    — colour-coded pill tags for field types
+ *  10. Items grid     — responsive CSS grid for item cards
+ *  11. Item card      — individual item card, header, fields, labels
+ *  12. Array field    — expandable list-of-values input for array type
+ *  13. Toggle switch  — CSS-only boolean toggle (hidden checkbox + pill)
+ *  14. Preview modal  — JSON preview overlay with code block
+ *  15. Misc           — divider, badge-count
+ *  16. Responsive     — mobile overrides at 640px breakpoint
+ */
+
+
+/* ============================================================
+   1. VARIABLES
+   ============================================================
+   All values used across the stylesheet are declared here as
+   CSS custom properties. Groupings:
+
+   Backgrounds
+     --bg          page background (light gray)
+     --bg-card     card / panel surface (white)
+
+   Brand / primary (indigo)
+     --primary           base indigo for buttons, focus rings, badges
+     --primary-hover     darker shade for hover states
+     --primary-light     very light tint for backgrounds
+     --primary-border    light indigo for bordered elements
+
+   Danger (red) — used for remove buttons
+     --danger / --danger-hover / --danger-light
+
+   Text hierarchy
+     --text            near-black for body copy
+     --text-secondary  medium grey for labels and secondary text
+     --text-muted      light grey for placeholders and hints
+
+   Borders & shadows
+     --border        default border colour
+     --border-input  slightly darker for input borders
+     --shadow-sm     subtle card shadow
+     --shadow        elevated card shadow (on hover)
+     --shadow-lg     modal shadow
+
+   Border-radius
+     --radius    large corners for cards and modals
+     --radius-sm smaller corners for inputs, buttons, rows
+     --radius-xs smallest, currently unused
+
+   Type colours — referenced by .type-tag.type-* classes
+     These are not applied directly; the per-type classes below use
+     their own hardcoded background/foreground pairs for accessibility.
+   ============================================================ */
+:root {
+  --bg: #f1f5f9;
+  --bg-card: #ffffff;
+  --primary: #6366f1;
+  --primary-hover: #4f46e5;
+  --primary-light: #eef2ff;
+  --primary-border: #c7d2fe;
+  --danger: #ef4444;
+  --danger-hover: #dc2626;
+  --danger-light: #fef2f2;
+  --success: #22c55e;
+  --text: #0f172a;
+  --text-secondary: #64748b;
+  --text-muted: #94a3b8;
+  --border: #e2e8f0;
+  --border-input: #cbd5e1;
+  --shadow-sm: 0 1px 3px rgba(0, 0, 0, 0.06), 0 1px 2px rgba(0, 0, 0, 0.04);
+  --shadow: 0 4px 16px rgba(0, 0, 0, 0.08);
+  --shadow-lg: 0 10px 40px rgba(0, 0, 0, 0.12);
+  --radius: 10px;
+  --radius-sm: 6px;
+  --radius-xs: 4px;
+  /* not used directly — kept for reference */
+  --type-string: #0ea5e9;
+  --type-number: #f97316;
+  --type-boolean: #10b981;
+  --type-array: #8b5cf6;
+}
+
+
+/* ============================================================
+   2. RESET
+   ============================================================
+   Apply border-box sizing universally so padding and border are
+   included in element dimensions — eliminates the most common
+   layout surprises. Zero out default margins and padding so we
+   start from a known baseline.
+
+   body sets the system font stack (falls back gracefully on every
+   OS), the page background, text colour, minimum full-screen height,
+   and the base font size / line-height used throughout.
+   ============================================================ */
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+body {
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  background: var(--bg);
+  color: var(--text);
+  min-height: 100vh;
+  font-size: 14px;
+  line-height: 1.5;
+}
+
+
+/* ============================================================
+   3. HEADER
+   ============================================================
+   .app-header — the sticky top navigation bar.
+     position: sticky + top: 0 keeps it visible while the user
+     scrolls through many items. z-index: 100 ensures it sits above
+     all panel content and the items grid.
+
+   .app-logo — left cluster: icon square + title/subtitle stacked.
+
+   .app-logo-icon — coloured square that holds the SVG brand mark.
+     The flex centering ensures the icon stays perfectly centred
+     regardless of its actual dimensions.
+
+   .app-title / .app-subtitle — branding text on the left side.
+
+   .header-actions — right cluster: Preview, Clear, Export buttons.
+   ============================================================ */
+.app-header {
+  background: var(--bg-card);
+  border-bottom: 1px solid var(--border);
+  padding: 0 24px;
+  height: 60px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  position: sticky;
+  top: 0;
+  z-index: 100;
+  box-shadow: var(--shadow-sm);
+}
+
+.app-logo {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.app-logo-icon {
+  width: 32px;
+  height: 32px;
+  background: var(--primary);
+  border-radius: var(--radius-sm);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: white;
+}
+
+.app-title {
+  font-size: 16px;
+  font-weight: 700;
+  color: var(--text);
+  letter-spacing: -0.02em;
+}
+
+.app-subtitle {
+  font-size: 12px;
+  color: var(--text-muted);
+  margin-top: 1px;
+}
+
+.header-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+
+/* ============================================================
+   4. BUTTONS
+   ============================================================
+   .btn — shared base for all text buttons. Uses inline-flex so
+     icons and labels stay vertically centred. The 0.15s transition
+     covers colour, border, and background changes on hover.
+     transform: scale(0.97) on :active gives a satisfying press feel.
+
+   Variants:
+     .btn-primary        — filled indigo (main call-to-action)
+     .btn-secondary      — white with border; turns indigo on hover
+     .btn-ghost          — no background; subtle hover fill
+     .btn-danger-outline — transparent red; fills on hover
+
+   .btn-icon — square icon-only button (28×28 px). Colour and border
+     are revealed on hover. Two modifier classes control hover colour:
+       .btn-remove    → red (destructive actions)
+       .btn-duplicate → indigo (non-destructive copy action)
+   ============================================================ */
+.btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 7px 14px;
+  border-radius: var(--radius-sm);
+  font-size: 13px;
+  font-weight: 500;
+  cursor: pointer;
+  border: 1px solid transparent;
+  transition: all 0.15s;
+  white-space: nowrap;
+  text-decoration: none;
+}
+
+.btn:active { transform: scale(0.97); }
+
+.btn-primary {
+  background: var(--primary);
+  color: white;
+  border-color: var(--primary);
+}
+.btn-primary:hover { background: var(--primary-hover); border-color: var(--primary-hover); }
+
+.btn-secondary {
+  background: var(--bg-card);
+  color: var(--text);
+  border-color: var(--border-input);
+}
+.btn-secondary:hover { background: var(--bg); border-color: var(--primary); color: var(--primary); }
+
+.btn-ghost {
+  background: transparent;
+  color: var(--text-secondary);
+  border-color: transparent;
+}
+.btn-ghost:hover { background: var(--bg); color: var(--text); }
+
+.btn-danger-outline {
+  background: transparent;
+  color: var(--danger);
+  border-color: var(--danger);
+}
+.btn-danger-outline:hover { background: var(--danger-light); }
+
+.btn-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+  border: 1px solid transparent;
+  background: transparent;
+  color: var(--text-muted);
+  transition: all 0.15s;
+  flex-shrink: 0;  /* never squash in flex rows */
+}
+.btn-icon:hover { background: var(--bg); color: var(--text); border-color: var(--border); }
+.btn-icon.btn-remove:hover    { background: var(--danger-light); color: var(--danger); border-color: var(--danger); }
+.btn-icon.btn-duplicate:hover { background: var(--primary-light); color: var(--primary); border-color: var(--primary-border); }
+
+
+/* ============================================================
+   5. LAYOUT
+   ============================================================
+   .app-main — the scrollable content area below the header.
+     max-width: 1100px + auto horizontal margin centres it on wide
+     screens. The flex column with gap keeps Schema and Items panels
+     consistently spaced without individual margin declarations.
+   ============================================================ */
+.app-main {
+  max-width: 1100px;
+  margin: 0 auto;
+  padding: 28px 24px 60px;
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+}
+
+
+/* ============================================================
+   6. PANELS
+   ============================================================
+   .panel — the shared card container used for both the Schema
+     section and the Items section. overflow: hidden clips the
+     rounded corners on inner elements (e.g. the item card header
+     background that butts up against the top edge).
+
+   .panel-header — the title bar at the top of each panel. Uses
+     space-between to push the action button to the right.
+
+   .panel-title-group — clusters the title text + description + count
+     badge together on the left side of the header.
+
+   .panel-badge / .badge-count — pill-shaped count indicator.
+     Both class names exist for legacy reasons; .badge-count is used
+     in the HTML, .panel-badge is reserved for future use.
+
+   .panel-body — padding wrapper for the panel's internal content.
+   ============================================================ */
+.panel {
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  box-shadow: var(--shadow-sm);
+  overflow: hidden;
+}
+
+.panel-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 14px 18px;
+  border-bottom: 1px solid var(--border);
+  gap: 12px;
+}
+
+.panel-title-group {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.panel-title {
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--text);
+}
+
+.panel-desc {
+  font-size: 12px;
+  color: var(--text-muted);
+}
+
+.panel-badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 20px;
+  height: 20px;
+  padding: 0 6px;
+  background: var(--primary-light);
+  color: var(--primary);
+  border-radius: 20px;
+  font-size: 11px;
+  font-weight: 600;
+}
+
+.panel-body {
+  padding: 16px 18px;
+}
+
+
+/* ============================================================
+   7. SCHEMA
+   ============================================================
+   .schema-fields-list — vertical stack container for all schema
+     field rows. gap: 8px provides consistent spacing between rows.
+
+   .schema-row — a single schema field entry rendered as a CSS grid:
+       column 1 (20px)  — drag handle
+       column 2 (1fr)   — name input (grows to fill available space)
+       column 3 (140px) — type select (fixed width for alignment)
+       column 4 (auto)  — remove button
+     The background colour and hover border create a subtle distinction
+     from the white panel background.
+
+   .schema-drag-handle — the ⠿ braille pattern used as a visual
+     drag handle. user-select: none prevents accidental text selection
+     when the user clicks it.
+
+   .schema-empty — dashed-border placeholder shown when no fields have
+     been defined yet. Matches the empty-state styling pattern used
+     elsewhere in the UI.
+   ============================================================ */
+.schema-fields-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-bottom: 12px;
+}
+
+.schema-row {
+  display: grid;
+  grid-template-columns: 20px 1fr 140px auto;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 10px;
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  transition: border-color 0.15s;
+}
+
+.schema-row:hover { border-color: var(--primary-border); }
+
+.schema-drag-handle {
+  color: var(--text-muted);
+  cursor: grab;
+  font-size: 16px;
+  line-height: 1;
+  user-select: none;
+  text-align: center;
+}
+
+.schema-empty {
+  text-align: center;
+  padding: 24px;
+  color: var(--text-muted);
+  font-size: 13px;
+  border: 1px dashed var(--border);
+  border-radius: var(--radius-sm);
+  margin-bottom: 12px;
+}
+
+
+/* ============================================================
+   8. INPUTS
+   ============================================================
+   .input — base style for all <input> elements in the app.
+     outline: none removes the browser's default focus ring; we
+     replace it with a box-shadow focus ring in --primary colour
+     for consistent branding and accessibility.
+
+   .input-mono — applied to schema field name inputs to signal
+     that the value is used as a JSON key (code context).
+
+   .select — custom-styled <select> element. appearance: none removes
+     the browser's native arrow; a custom SVG chevron is injected via
+     background-image so the element looks consistent across browsers.
+     padding-right: 30px reserves space for the custom arrow.
+   ============================================================ */
+.input {
+  width: 100%;
+  padding: 7px 10px;
+  border: 1px solid var(--border-input);
+  border-radius: var(--radius-sm);
+  font-size: 13px;
+  color: var(--text);
+  background: var(--bg-card);
+  outline: none;
+  transition: border-color 0.15s, box-shadow 0.15s;
+  font-family: inherit;
+}
+
+.input:focus {
+  border-color: var(--primary);
+  box-shadow: 0 0 0 3px rgba(99, 102, 241, 0.12);
+}
+
+.input::placeholder { color: var(--text-muted); }
+
+.input-mono {
+  font-family: 'SF Mono', 'Fira Code', 'Consolas', monospace;
+  font-size: 12px;
+}
+
+.select {
+  width: 100%;
+  padding: 7px 10px;
+  border: 1px solid var(--border-input);
+  border-radius: var(--radius-sm);
+  font-size: 13px;
+  color: var(--text);
+  background: var(--bg-card);
+  outline: none;
+  cursor: pointer;
+  transition: border-color 0.15s;
+  /* suppress the native OS arrow so we can inject a custom one */
+  appearance: none;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='%2394a3b8' stroke-width='2.5' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpolyline points='6 9 12 15 18 9'/%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-position: right 10px center;
+  padding-right: 30px;
+}
+
+.select:focus { border-color: var(--primary); box-shadow: 0 0 0 3px rgba(99, 102, 241, 0.12); }
+
+
+/* ============================================================
+   9. TYPE BADGES
+   ============================================================
+   .type-tag — pill label displayed next to a field's name inside
+     an item card to remind the user of that field's type without
+     them having to look back at the schema panel.
+
+   Each type gets a distinct background/foreground colour pair chosen
+   for readability and to avoid confusion between types:
+     string  → sky blue
+     number  → orange
+     boolean → emerald green
+     array   → violet
+   ============================================================ */
+.type-tag {
+  display: inline-block;
+  padding: 2px 7px;
+  border-radius: 20px;
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 0.03em;
+  text-transform: uppercase;
+}
+
+.type-tag.type-string  { background: #e0f2fe; color: #0369a1; }
+.type-tag.type-number  { background: #fff7ed; color: #c2410c; }
+.type-tag.type-boolean { background: #d1fae5; color: #065f46; }
+.type-tag.type-array   { background: #ede9fe; color: #6d28d9; }
+
+
+/* ============================================================
+   10. ITEMS GRID
+   ============================================================
+   .items-grid — wraps all item cards in a CSS grid.
+     repeat(auto-fill, minmax(300px, 1fr)) creates as many columns as
+     will fit at 300 px minimum; columns grow equally to fill the row.
+     This means: 3 columns on a 1000 px container, 2 on 650 px, 1 on
+     mobile — no media queries required for the grid itself.
+
+   .items-empty — centred call-to-action shown when there are no items.
+     The icon, message, and button are stacked vertically in the
+     centre of the panel.
+   ============================================================ */
+.items-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+  gap: 16px;
+  padding: 16px 18px;
+}
+
+.items-empty {
+  text-align: center;
+  padding: 48px 24px;
+  color: var(--text-muted);
+}
+
+.items-empty-icon {
+  margin-bottom: 12px;
+  opacity: 0.4;
+}
+
+.items-empty p {
+  font-size: 14px;
+  margin-bottom: 16px;
+}
+
+
+/* ============================================================
+   11. ITEM CARD
+   ============================================================
+   .item-card — individual data record displayed as a bordered,
+     rounded card. overflow: hidden clips child backgrounds (like
+     .item-card-header) to the card's border-radius. The hover
+     transition lifts the card with a stronger shadow and an indigo
+     border hint to signal interactivity.
+
+   .item-card-header — the grey top bar within each card showing the
+     item number and action buttons. Its background is --bg (slightly
+     off-white) to visually separate it from the white card body.
+
+   .item-number — "Item #N" label. Uses the sequential index from
+     the items array, not the internal numeric ID, so numbering is
+     always gap-free even after removals.
+
+   .item-card-actions — flex row holding duplicate and remove buttons,
+     aligned to the right of the header.
+
+   .item-fields — the scrollable body of each card; a flex column
+     with consistent gap between each field row.
+
+   .item-field — one field row: label on top, input below.
+
+   .field-label — the field name + type-tag row above each input.
+     The <span data-flabel="N"> child is patched in-place when the
+     user renames a field in the schema panel.
+
+   .item-no-schema — shown inside an item card when the schema is
+     empty, guiding the user to add fields first.
+   ============================================================ */
+.item-card {
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  overflow: hidden;
+  box-shadow: var(--shadow-sm);
+  transition: box-shadow 0.2s, border-color 0.2s;
+}
+
+.item-card:hover {
+  box-shadow: var(--shadow);
+  border-color: var(--primary-border);
+}
+
+.item-card-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 10px 14px;
+  background: var(--bg);
+  border-bottom: 1px solid var(--border);
+}
+
+.item-number {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--text-secondary);
+  letter-spacing: 0.02em;
+}
+
+.item-card-actions {
+  display: flex;
+  gap: 4px;
+}
+
+.item-fields {
+  padding: 12px 14px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.item-field {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.field-label {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--text-secondary);
+  letter-spacing: 0.01em;
+}
+
+.item-no-schema {
+  font-size: 12px;
+  color: var(--text-muted);
+  text-align: center;
+  padding: 12px 0;
+}
+
+
+/* ============================================================
+   12. ARRAY FIELD
+   ============================================================
+   Array-type fields display a variable-length list of text inputs,
+   each on its own row with a remove button, plus a dashed "Add entry"
+   button at the bottom.
+
+   .array-field — flex column wrapping all entries and the add button.
+
+   .array-entry — one row: input (flex: 1 so it takes available width)
+     + remove icon button.
+
+   .btn-add-entry — the dashed "Add entry" button. It uses a dashed
+     border at rest and transitions to a solid filled primary button on
+     hover to signal that clicking it will add something, not remove.
+   ============================================================ */
+.array-field {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.array-entry {
+  display: flex;
+  gap: 6px;
+  align-items: center;
+}
+
+.array-entry .input { flex: 1; }
+
+.btn-add-entry {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 5px 10px;
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--primary);
+  background: var(--primary-light);
+  border: 1px dashed var(--primary-border);
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+  transition: all 0.15s;
+  align-self: flex-start;  /* don't stretch to full width */
+}
+
+.btn-add-entry:hover {
+  background: var(--primary);
+  color: white;
+  border-color: var(--primary);
+  border-style: solid;
+}
+
+
+/* ============================================================
+   13. TOGGLE SWITCH (boolean type)
+   ============================================================
+   The boolean field is rendered as a pill toggle switch. The actual
+   <input type="checkbox"> is hidden; its :checked state drives the
+   visual toggle via the adjacent sibling combinator (+).
+
+   Structure in HTML:
+     <label class="toggle">
+       <input type="checkbox" />    ← hidden; holds the real state
+       <span class="toggle-slider"> ← the visible pill track
+       <span class="toggle-label">  ← "true" / "false" text
+     </label>
+
+   .toggle-slider — the pill track (36×20 px, rounded). Its ::after
+     pseudo-element is the white thumb circle that slides left/right.
+     When the hidden checkbox is :checked, the adjacent sibling
+     selector turns the track indigo and moves the thumb to the right.
+
+   .toggle-track / .toggle-thumb / .toggle-wrap — legacy classes kept
+     for backward compatibility with early prototypes; the active
+     implementation uses .toggle-slider only.
+   ============================================================ */
+.toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  cursor: pointer;
+}
+
+.toggle input[type="checkbox"] { display: none; }
+
+/* legacy classes — not used in current HTML but preserved */
+.toggle-track {
+  width: 36px;
+  height: 20px;
+  background: var(--border-input);
+  border-radius: 20px;
+  position: relative;
+  transition: background 0.2s;
+}
+
+.toggle input:checked + .toggle-track { background: var(--primary); }
+
+.toggle-thumb {
+  position: absolute;
+  top: 2px;
+  left: 2px;
+  width: 16px;
+  height: 16px;
+  background: white;
+  border-radius: 50%;
+  transition: left 0.2s;
+  box-shadow: 0 1px 3px rgba(0,0,0,0.2);
+}
+
+.toggle input:checked ~ .toggle-thumb,
+.toggle input:checked + .toggle-track + .toggle-thumb { left: 18px; }
+
+.toggle-track + .toggle-thumb { left: 2px; }
+
+/* active implementation uses .toggle-slider */
+.toggle-wrap {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+}
+
+.toggle-slider {
+  display: inline-block;
+  width: 36px;
+  height: 20px;
+  background: var(--border-input);
+  border-radius: 20px;
+  position: relative;
+  transition: background 0.2s;
+  cursor: pointer;
+}
+
+.toggle-slider::after {
+  content: '';
+  position: absolute;
+  top: 2px;
+  left: 2px;
+  width: 16px;
+  height: 16px;
+  background: white;
+  border-radius: 50%;
+  transition: left 0.2s;
+  box-shadow: 0 1px 3px rgba(0,0,0,0.2);
+}
+
+/* checked state: turn track indigo and slide thumb right */
+.toggle input:checked + .toggle-slider { background: var(--primary); }
+.toggle input:checked + .toggle-slider::after { left: 18px; }
+
+.toggle-label {
+  font-size: 12px;
+  color: var(--text-secondary);
+}
+
+
+/* ============================================================
+   14. PREVIEW MODAL
+   ============================================================
+   The JSON preview is an accessible modal dialog overlaid on the page.
+
+   .modal-backdrop — covers the entire viewport (position: fixed,
+     inset: 0). Hidden by default (display: none); the .open class
+     switches it to display: flex so the modal box is centred.
+     backdrop-filter: blur(2px) softly blurs the content behind for
+     visual depth. Clicking the backdrop directly (not the modal box)
+     calls closePreview() via a JS event listener.
+
+   .modal — the dialog box itself. max-height: 80vh with overflow:
+     hidden on the outer box and overflow-y: auto on .modal-body
+     means long JSON previews scroll inside the box without the dialog
+     growing taller than the screen.
+
+   .code-block — the <pre> element that displays the formatted JSON.
+     Monospace font, white-space: pre to preserve indentation,
+     overflow-x: auto for wide JSON without wrapping.
+   ============================================================ */
+.modal-backdrop {
+  position: fixed;
+  inset: 0;
+  background: rgba(0,0,0,0.5);
+  z-index: 200;
+  display: none;          /* hidden by default */
+  align-items: center;
+  justify-content: center;
+  padding: 24px;
+  backdrop-filter: blur(2px);
+}
+
+.modal-backdrop.open { display: flex; }
+
+.modal {
+  background: var(--bg-card);
+  border-radius: var(--radius);
+  box-shadow: var(--shadow-lg);
+  width: 100%;
+  max-width: 680px;
+  max-height: 80vh;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+.modal-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 16px 20px;
+  border-bottom: 1px solid var(--border);
+}
+
+.modal-title {
+  font-size: 15px;
+  font-weight: 600;
+}
+
+.modal-body {
+  flex: 1;
+  overflow-y: auto;  /* scroll long JSON without growing the dialog */
+  padding: 0;
+}
+
+.modal-footer {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 8px;
+  padding: 12px 20px;
+  border-top: 1px solid var(--border);
+}
+
+.code-block {
+  padding: 20px;
+  font-family: 'SF Mono', 'Fira Code', 'Consolas', monospace;
+  font-size: 12.5px;
+  line-height: 1.7;
+  color: #1e293b;
+  background: #f8fafc;
+  white-space: pre;      /* preserve JSON indentation */
+  overflow-x: auto;      /* scroll horizontally for wide values */
+  margin: 0;
+  flex: 1;
+  min-height: 200px;
+}
+
+
+/* ============================================================
+   15. MISC
+   ============================================================
+   .section-divider — a 1 px horizontal rule used to visually separate
+     sub-sections within a panel. Not currently used in HTML but
+     available for future layout needs.
+
+   .badge-count — the count pill shown in panel headers (e.g. "3"
+     next to "Items"). Larger than .panel-badge and bold for emphasis.
+   ============================================================ */
+.section-divider {
+  height: 1px;
+  background: var(--border);
+  margin: 4px 0;
+}
+
+.badge-count {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 22px;
+  height: 22px;
+  padding: 0 7px;
+  background: var(--primary-light);
+  color: var(--primary);
+  border-radius: 20px;
+  font-size: 11px;
+  font-weight: 700;
+}
+
+
+/* ============================================================
+   16. RESPONSIVE — 640 px BREAKPOINT
+   ============================================================
+   On small screens (phones in portrait):
+     - Reduce page padding to use the full width.
+     - Collapse the items grid to a single column.
+     - Hide the header subtitle (too long to read at small widths).
+     - Hide button text labels in the header — only icons remain,
+       saving horizontal space. The buttons stay functional because
+       they have title attributes and their icons are recognisable.
+   ============================================================ */
+@media (max-width: 640px) {
+  .app-main { padding: 16px 12px 48px; }
+  .items-grid { grid-template-columns: 1fr; padding: 12px; }
+  .app-subtitle { display: none; }
+  .header-actions .btn span { display: none; }
+}
